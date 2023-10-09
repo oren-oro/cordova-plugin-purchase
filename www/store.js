@@ -4814,8 +4814,18 @@ var CdvPurchase;
                 return new Promise((resolve) => {
                     this.log.debug("Load: " + JSON.stringify(products));
                     /** Called when a list of product definitions have been loaded */
+                    const errHandler = (err) => {
+                        // failed to load products, retry later.
+                        this.retry.retry(go);
+                        this.context.error(playStoreError(CdvPurchase.ErrorCode.LOAD, 'Loading product info failed - ' + err + ' - retrying later...', null));
+                    }
                     const iabLoaded = (validProducts) => {
                         this.log.debug("Loaded: " + JSON.stringify(validProducts));
+                        if (!(validProducts instanceof Array)) {
+                            errHandler('Wrong response type! validProducts=' + JSON.stringify(validProducts))
+                            return
+                        }
+
                         const ret = products.map(registeredProduct => {
                             const validProduct = validProducts.find(vp => vp.productId === registeredProduct.id);
                             if (validProduct && validProduct.productId) {
@@ -4831,11 +4841,7 @@ var CdvPurchase;
                     const go = () => {
                         const { inAppSkus, subsSkus } = this.getSkusOf(products);
                         this.log.debug("getAvailableProducts: " + JSON.stringify(inAppSkus) + " | " + JSON.stringify(subsSkus));
-                        this.bridge.getAvailableProducts(inAppSkus, subsSkus, iabLoaded, (err) => {
-                            // failed to load products, retry later.
-                            this.retry.retry(go);
-                            this.context.error(playStoreError(CdvPurchase.ErrorCode.LOAD, 'Loading product info failed - ' + err + ' - retrying later...', null));
-                        });
+                        this.bridge.getAvailableProducts(inAppSkus, subsSkus, iabLoaded, errHandler);
                     };
                     go();
                 });
